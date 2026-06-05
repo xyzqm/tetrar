@@ -14,13 +14,14 @@
 // ---------------------------------------------------------------------------
 
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyCUVUh4NuPKPW_QOD1bEZvg4FHDn4uotqc",
+  authDomain: "tetrar-4128a.firebaseapp.com",
+  databaseURL: "https://tetrar-4128a-default-rtdb.firebaseio.com",
+  projectId: "tetrar-4128a",
+  storageBucket: "tetrar-4128a.firebasestorage.app",
+  messagingSenderId: "965693956621",
+  appId: "1:965693956621:web:71e245ca87d711ae982b44",
+  measurementId: "G-LNECWQWW67"
 };
 
 // Online play is considered available only once a databaseURL is provided.
