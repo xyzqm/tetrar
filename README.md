@@ -17,11 +17,14 @@ and become yours.
 
 **Mines:** before the game, each player secretly places a number of mines on interior
 cells (placement is blind — you never see opponents' mines, and two mines on the same
-cell count as one). During play, if any cell you select is a mine, your **entire turn
-is skipped** — and you aren't told which cell did it, so you may want to probe with
-fewer than four cells to scout safe ground. Your starting foothold is mine-safe;
-mines only bite during the territory battle. Enclosing a region that contains mines
-reveals them and awards **bonus points**.
+cell count as separate mines for scoring). During play, if any cell you select is a
+mine — anyone's, including your own — your **entire turn is skipped**, and you aren't
+told which cell did it, so you may want to probe with fewer than four cells to scout
+safe ground. Your starting foothold is mine-safe; mines only bite during the territory
+battle. Enclosing a region reveals any mines in it (with a colored dot showing each
+player who placed one) and awards **bonus points for every enclosed mine that isn't
+your own** — so capturing opponents' minefields pays off, but burying your own under
+your territory does not.
 
 ## Options
 

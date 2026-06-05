@@ -383,6 +383,7 @@ export class GameUI {
       const owner = state.grid[idx];
       cell.className = "cell";
       cell.style.removeProperty("--owner");
+      if (cell.firstChild) cell.replaceChildren(); // clear any placer dots
 
       if (owner !== null) {
         cell.classList.add("owned");
@@ -397,9 +398,21 @@ export class GameUI {
           cell.classList.add("mine-target");
         }
       } else {
-        // Reveal enclosed mines (owned cell + mine) to everyone.
-        if (owner !== null && state.mines && state.mines[idx]) {
+        // Reveal enclosed mines (owned cell + mine) to everyone, with a colored dot
+        // per player who placed a mine there.
+        const placers = state.mineOwners && state.mineOwners[idx];
+        if (owner !== null && placers && placers.length) {
           cell.classList.add("mine-revealed");
+          const dots = document.createElement("span");
+          dots.className = "mine-dots";
+          for (const pl of placers) {
+            const d = document.createElement("span");
+            d.className = "mine-dot";
+            d.style.background = state.players[pl].color;
+            d.title = state.players[pl].name;
+            dots.appendChild(d);
+          }
+          cell.appendChild(dots);
         }
         if (this.pending.has(idx)) {
           cell.classList.add("pending");

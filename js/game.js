@@ -48,12 +48,14 @@ export function createGame({
   // and pick-seed phases).
   const movesMade = players.map(() => 0);
 
-  // Mines are hidden from opponents. The mines array is the ground truth; the UI
-  // tracks which mines *this client* placed so it can display them locally.
-  // NOTE: in online play the full mines array travels in stateJson (technically
+  // Mines are hidden from opponents. mineOwners[idx] is the list of player indices
+  // who placed a mine on that cell (several players can mine the same cell — each
+  // counts separately for enclosure points, except your own). The UI tracks which
+  // mines *this client* placed so it can display them locally during placement.
+  // NOTE: in online play the full mineOwners travels in stateJson (technically
   // readable by anyone inspecting the network). For casual play this is acceptable;
   // add Firebase Auth + per-player secret paths for true privacy.
-  const mines = new Array(n * n).fill(false);
+  const mineOwners = Array.from({ length: n * n }, () => []);
   const minesPlaced = players.map(() => 0);
   const mineScores = players.map(() => 0);
 
@@ -76,7 +78,7 @@ export function createGame({
     seedMode,
     movesMade,
     phase,
-    mines,
+    mineOwners,
     minesPerPlayer,
     minePoints,
     minesPlaced,
@@ -123,7 +125,8 @@ export function applyMinePlacement(state, player, idx) {
   if (!cellLegalForMine(state, idx)) {
     throw new Error(`Illegal mine placement at ${idx}`);
   }
-  state.mines[idx] = true; // idempotent: coinciding mines collapse to one
+  // Record the placer (a given player mines a cell at most once).
+  if (!state.mineOwners[idx].includes(player)) state.mineOwners[idx].push(player);
   state.minesPlaced[player] += 1;
 
   // This player keeps placing until they've laid all their mines.
@@ -247,10 +250,11 @@ export function applyTurn(state, player, cells) {
     pending.add(idx);
   }
 
-  // Mine check: if ANY selected cell contains a mine, skip the entire turn.
-  // Seeding is mine-safe — you can't lose your initial foothold to a mine; mines
-  // only bite during the territory battle (the "playing" phase).
-  const mineHit = state.phase === "playing" && cells.some((idx) => state.mines[idx]);
+  // Mine check: if ANY selected cell contains a mine (anyone's, including your own),
+  // skip the entire turn. Seeding is mine-safe — you can't lose your initial foothold
+  // to a mine; mines only bite during the territory battle (the "playing" phase).
+  const mineHit =
+    state.phase === "playing" && cells.some((idx) => state.mineOwners[idx].length > 0);
 
   if (!mineHit) {
     for (const idx of cells) state.grid[idx] = player;
@@ -304,7 +308,7 @@ export function applyTurn(state, player, cells) {
 export function captureEnclosed(state) {
   if (!state.players.every((p) => state.grid.includes(p.index))) return [];
 
-  const { n, grid, mines, minePoints, mineScores } = state;
+  const { n, grid, mineOwners, minePoints, mineScores } = state;
   const total = n * n;
   const visited = new Uint8Array(total);
   const captured = [];
@@ -337,7 +341,13 @@ export function captureEnclosed(state) {
       const owner = [...borderingPlayers][0];
       for (const idx of component) {
         grid[idx] = owner;
-        if (mines[idx]) mineScores[owner] += minePoints; // mine bonus
+        // Bonus for each enclosed mine that ISN'T the enclosing player's own.
+        const placers = mineOwners[idx];
+        if (placers.length) {
+          let foreign = 0;
+          for (const pl of placers) if (pl !== owner) foreign += 1;
+          mineScores[owner] += foreign * minePoints;
+        }
         captured.push(idx);
       }
     }
