@@ -48,7 +48,10 @@
         </select>
       </label>
 
-      <button id="start-btn" class="primary">Start</button>
+      <div class="menu-actions">
+        <button id="start-btn" class="primary">Start local game</button>
+        <button id="online-btn">Play online</button>
+      </div>
 
       <details class="rules">
         <summary>How to play</summary>
@@ -71,8 +74,47 @@
       </details>
     </section>
 
+    <!-- Online lobby -->
+    <section id="lobby" class="panel hidden">
+      <h2>Play online</h2>
+
+      <p id="online-setup-note" class="setup-note hidden">
+        Online play isn't configured yet. Add your Firebase project details in
+        <code>js/firebase-config.js</code> (see the README), then reload.
+      </p>
+
+      <label class="field">
+        <span>Your name</span>
+        <input id="lobby-name" type="text" maxlength="20" placeholder="e.g. Alex" />
+        <span></span>
+      </label>
+
+      <div id="lobby-entry">
+        <button id="create-room-btn" class="primary">Create room</button>
+        <div class="or">or join with a code</div>
+        <div class="join-row">
+          <input id="join-code" type="text" maxlength="5" placeholder="CODE" />
+          <button id="join-room-btn">Join</button>
+        </div>
+      </div>
+
+      <div id="lobby-room" class="hidden">
+        <div class="room-share">
+          Room <strong id="room-code"></strong>
+          <button id="copy-link-btn" class="small">Copy link</button>
+        </div>
+        <ul id="player-list" class="player-list"></ul>
+        <button id="host-start-btn" class="primary hidden">Start game</button>
+        <p id="lobby-hint" class="status"></p>
+      </div>
+
+      <p id="online-error" class="status error-text"></p>
+      <button id="lobby-back-btn" class="ghost">Back</button>
+    </section>
+
     <!-- Game view -->
     <section id="game" class="panel hidden">
+      <div id="online-banner" class="online-banner hidden"></div>
       <div id="hud" class="hud"></div>
       <div id="board" class="board"></div>
       <div class="controls">

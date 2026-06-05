@@ -121,6 +121,121 @@ button.ghost {
   font-size: 1.05rem;
 }
 
+.menu-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.menu-actions button {
+  flex: 1;
+  padding: 12px;
+  font-size: 1.05rem;
+}
+
+/* ---- Lobby ---- */
+#lobby h2 {
+  margin-top: 0;
+}
+.setup-note {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.setup-note code {
+  color: var(--text);
+}
+#lobby-name {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 1rem;
+  width: 100%;
+}
+#lobby-entry .or {
+  text-align: center;
+  color: var(--muted);
+  margin: 14px 0 10px;
+  font-size: 0.9rem;
+}
+.join-row {
+  display: flex;
+  gap: 8px;
+}
+#join-code {
+  flex: 1;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 1.05rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+#create-room-btn {
+  width: 100%;
+  padding: 12px;
+}
+.room-share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1rem;
+  margin-bottom: 14px;
+}
+.room-share strong {
+  letter-spacing: 0.18em;
+  font-size: 1.3rem;
+  color: var(--accent);
+}
+button.small {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+.player-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+#host-start-btn {
+  width: 100%;
+}
+.error-text {
+  color: #ff8b6b;
+}
+#lobby-back-btn {
+  margin-top: 8px;
+}
+.online-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.online-banner strong {
+  color: var(--accent);
+  letter-spacing: 0.12em;
+}
+
 .rules {
   margin-top: 16px;
   color: var(--muted);

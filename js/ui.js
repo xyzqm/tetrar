@@ -23,6 +23,13 @@ export class GameUI {
     this.cellEls = []; // index -> div
     this.aiThinking = false;
 
+    // Online mode: moves are routed to the server and authoritative state comes
+    // back via updateOnline(). "local" keeps the original hotseat/AI behavior.
+    this.mode = "local";
+    this.myPid = null;
+    this.submitFn = null;
+    this.awaitingServer = false;
+
     // Drag-to-select state.
     this.dragging = false;
     this.dragMode = null; // "select" | "deselect"
@@ -37,6 +44,7 @@ export class GameUI {
   }
 
   start(config) {
+    this.mode = "local";
     this.state = createGame(config);
     this.pending = new Set();
     this.aiThinking = false;
@@ -44,6 +52,30 @@ export class GameUI {
     this.buildBoard();
     this.refresh();
     this.maybeRunAI();
+  }
+
+  // Enter an online game with the first authoritative state from the server.
+  // `submitFn(cells)` sends a move; the resulting state arrives via updateOnline().
+  beginOnline(state, myPid, submitFn) {
+    this.mode = "online";
+    this.myPid = myPid;
+    this.submitFn = submitFn;
+    this.state = state;
+    this.pending = new Set();
+    this.awaitingServer = false;
+    this.els.gameover.classList.add("hidden");
+    this.buildBoard();
+    this.refresh();
+  }
+
+  // Apply a fresh authoritative state pushed from the server.
+  updateOnline(state) {
+    this.state = state;
+    this.pending = new Set();
+    this.awaitingServer = false;
+    if (this.cellEls.length !== state.n * state.n) this.buildBoard();
+    this.refresh();
+    if (isGameOver(this.state)) this.showGameOver();
   }
 
   buildBoard() {
@@ -66,6 +98,14 @@ export class GameUI {
   }
 
   isHumanTurn() {
+    if (this.mode === "online") {
+      return (
+        !!this.state &&
+        !this.awaitingServer &&
+        !isGameOver(this.state) &&
+        this.currentPlayer.pid === this.myPid
+      );
+    }
     return !this.currentPlayer.isAI && !this.aiThinking;
   }
 
@@ -167,6 +207,15 @@ export class GameUI {
   }
 
   commit(cells) {
+    if (this.mode === "online") {
+      // Send the move; wait for the server to echo authoritative state back.
+      this.pending = new Set();
+      this.awaitingServer = true;
+      this.refresh();
+      this.submitFn(cells);
+      return;
+    }
+
     const player = this.state.current;
     applyTurn(this.state, player, cells);
     this.pending = new Set();
@@ -253,6 +302,22 @@ export class GameUI {
 
     const player = this.currentPlayer;
     const limit = turnLimit(this.state, player.index);
+
+    if (this.mode === "online" && !isGameOver(this.state)) {
+      const seedPick =
+        this.state.seedMode === "pick" && this.state.movesMade[player.index] === 0;
+      if (this.awaitingServer) {
+        this.els.status.textContent = "Sending move…";
+      } else if (human) {
+        this.els.status.textContent = seedPick
+          ? "Your turn — pick your starting cell."
+          : `Your turn — select up to ${limit} cells (${this.pending.size}/${limit}).`;
+      } else {
+        this.els.status.textContent = `Waiting for ${player.name}…`;
+      }
+      return;
+    }
+
     if (this.aiThinking || player.isAI) {
       this.els.status.textContent = `${player.name} (AI) is thinking…`;
     } else if (this.state.seedMode === "pick" && this.state.movesMade[player.index] === 0) {
