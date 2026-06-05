@@ -174,42 +174,49 @@ export function applyTurn(state, player, cells) {
   return state;
 }
 
-// Capture any region fully enclosed by `player`. A region is the set of cells NOT
-// owned by `player`; flood-fill from the border through non-player cells marks every
-// cell that can "escape" to an edge. Any non-player cell that can't escape is walled
-// in by `player` and flips to them (this includes enclosed opponent cells, Go-style).
-// Mutates the grid and returns the captured indices.
+// Capture empty regions sealed off by `player`. The board edges act as walls, so an
+// empty region is captured when the only player bordering it is `player` (no opponent
+// cell touches it). Only empty cells flip — enclosed opponent cells are left alone.
+// Skipped until every player has territory, so the first mover in a seed mode can't
+// claim the whole open board. Mutates the grid and returns the captured indices.
 export function captureEnclosed(state, player) {
+  // Don't capture before everyone has a foothold (pick/free seed phases).
+  if (!state.players.every((p) => state.grid.includes(p.index))) return [];
+
   const { n, grid } = state;
   const total = n * n;
-  const escapes = new Array(total).fill(false);
-  const stack = [];
+  const visited = new Array(total).fill(false);
+  const captured = [];
 
-  // Seed the flood from every border cell not owned by the player.
-  for (let idx = 0; idx < total; idx++) {
-    const r = Math.floor(idx / n);
-    const c = idx % n;
-    const onBorder = r === 0 || c === 0 || r === n - 1 || c === n - 1;
-    if (onBorder && grid[idx] !== player && !escapes[idx]) {
-      escapes[idx] = true;
-      stack.push(idx);
-    }
-  }
-  while (stack.length) {
-    const idx = stack.pop();
-    for (const nb of neighbors(idx, n)) {
-      if (grid[nb] !== player && !escapes[nb]) {
-        escapes[nb] = true;
-        stack.push(nb);
+  for (let start = 0; start < total; start++) {
+    if (grid[start] !== null || visited[start]) continue;
+
+    // Flood the connected component of empty cells, noting which players border it.
+    const component = [];
+    const borderingPlayers = new Set();
+    const stack = [start];
+    visited[start] = true;
+    while (stack.length) {
+      const idx = stack.pop();
+      component.push(idx);
+      for (const nb of neighbors(idx, n)) {
+        if (grid[nb] === null) {
+          if (!visited[nb]) {
+            visited[nb] = true;
+            stack.push(nb);
+          }
+        } else {
+          borderingPlayers.add(grid[nb]);
+        }
       }
     }
-  }
 
-  const captured = [];
-  for (let idx = 0; idx < total; idx++) {
-    if (grid[idx] !== player && !escapes[idx]) {
-      grid[idx] = player;
-      captured.push(idx);
+    // Sealed by this player alone (board edges count as walls) -> claim it.
+    if (borderingPlayers.size === 1 && borderingPlayers.has(player)) {
+      for (const idx of component) {
+        grid[idx] = player;
+        captured.push(idx);
+      }
     }
   }
   return captured;

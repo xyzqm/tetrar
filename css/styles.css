@@ -91,10 +91,10 @@ button {
   padding: 10px 16px;
   transition: transform 0.05s ease, background 0.15s ease, opacity 0.15s ease;
 }
-button:hover:not(:disabled) {
+button:hover:not(:disabled):not(.cell) {
   background: #2f3650;
 }
-button:active:not(:disabled) {
+button:active:not(:disabled):not(.cell) {
   transform: translateY(1px);
 }
 button:disabled {
