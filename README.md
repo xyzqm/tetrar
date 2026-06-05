@@ -11,6 +11,18 @@ four. If you can place fewer than four (blocked by edges, walls of opponents, or
 filled space), place what you can and end your turn. When nobody can move, whoever
 holds the most cells wins.
 
+**Enclosure:** if you wall off a region of empty cells so that your color (together
+with the board edges) is the only thing bordering it, those empty cells are captured
+and become yours.
+
+**Mines:** before the game, each player secretly places a number of mines on interior
+cells (placement is blind — you never see opponents' mines, and two mines on the same
+cell count as one). During play, if any cell you select is a mine, your **entire turn
+is skipped** — and you aren't told which cell did it, so you may want to probe with
+fewer than four cells to scout safe ground. Your starting foothold is mine-safe;
+mines only bite during the territory battle. Enclosing a region that contains mines
+reveals them and awards **bonus points**.
+
 ## Options
 
 - **Grid size** — 5×5 up to 15×15.
@@ -21,6 +33,9 @@ holds the most cells wins.
   - **Auto-seed corners** — each player starts owning one corner.
   - **Pick a starting cell** — each player claims one free cell on their first turn.
   - **Free first move** — first turn places 4 cells anywhere (mutually connected).
+- **Mines / player** — how many mines each player hides before the game (0 disables
+  the whole mining phase).
+- **Mine points** — bonus points awarded per mine you enclose.
 
 ## Run locally
 

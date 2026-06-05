@@ -58,7 +58,7 @@ export function initOnline({ ui, show }) {
 
   // Open the lobby screen. `config` carries grid size + seed mode chosen on the menu.
   function openLobby(config) {
-    ctx.config = { n: config.n, seedMode: config.seedMode };
+    ctx.config = { n: config.n, seedMode: config.seedMode, minesPerPlayer: config.minesPerPlayer ?? 3, minePoints: config.minePoints ?? 10 };
     setError("");
     els.name.value = getMyName();
     els.banner.classList.add("hidden");
@@ -154,9 +154,9 @@ export function initOnline({ ui, show }) {
       ctx.inGame = true;
       showBanner(ctx.code);
       show("game");
-      ui.beginOnline(state, ctx.pid, (cells) => submitMove(ctx.code, ctx.pid, cells));
+      ui.beginOnline(state, ctx.pid, (action) => submitMove(ctx.code, ctx.pid, action));
     } else {
-      ui.updateOnline(state);
+      ui.updateOnline(state, room.lastMineHit || false);
     }
   }
 

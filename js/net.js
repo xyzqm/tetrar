@@ -64,7 +64,7 @@ function armPresence(code, pid) {
 }
 
 // Create a new room and seat the creator as host (slot 0). Returns { code, pid }.
-export async function createRoom({ n, seedMode, name }) {
+export async function createRoom({ n, seedMode, name, minesPerPlayer = 3, minePoints = 10 }) {
   await init();
   const pid = getMyPid();
   setMyName(name);
@@ -80,7 +80,7 @@ export async function createRoom({ n, seedMode, name }) {
   await fb.set(roomRef(code), {
     createdAt: fb.serverTimestamp(),
     hostPid: pid,
-    config: { n, seedMode },
+    config: { n, seedMode, minesPerPlayer, minePoints },
     status: "lobby",
     version: 0,
     players: {
@@ -149,6 +149,8 @@ export async function startGame(code) {
   const state = createOnlineState({
     n: room.config.n,
     seedMode: room.config.seedMode,
+    minesPerPlayer: room.config.minesPerPlayer ?? 3,
+    minePoints: room.config.minePoints ?? 10,
     players: seated.map((p) => ({ pid: p.pid, name: p.name, color: p.color })),
   });
 
@@ -159,18 +161,21 @@ export async function startGame(code) {
   });
 }
 
-// Submit a move. Runs as a transaction so only a legal move by the player whose
-// turn it is takes effect; everything else aborts without changing state.
-export async function submitMove(code, pid, cells) {
+// Submit a move or mine placement. Runs as a transaction so only a legal action by
+// the player whose turn it is takes effect; everything else aborts.
+// `action` = { type: 'turn', cells: [...] } or { type: 'mine', idx: N }
+export async function submitMove(code, pid, action) {
   await init();
   const res = await fb.runTransaction(roomRef(code), (room) => {
-    if (!room || room.status !== "playing" || !room.stateJson) return room;
+    if (!room || !room.stateJson) return room;
+    // Allow moves during both "playing" and "mining" phases (status is "playing" for both).
     const state = deserializeState(room.stateJson);
-    const out = applyMove(state, pid, cells);
+    const out = applyMove(state, pid, action);
     if (!out.ok) return; // abort: not your turn / illegal
     room.stateJson = serializeState(state);
     room.version = (room.version || 0) + 1;
     room.status = isGameOver(state) ? "over" : "playing";
+    room.lastMineHit = out.mineHit || false;
     return room;
   });
   return res.committed;

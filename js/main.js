@@ -29,21 +29,25 @@ function show(name) {
 
 const online = initOnline({ ui, show });
 
-// Live label for the grid-size slider.
-const sizeInput = $("opt-size");
-const sizeOut = $("opt-size-out");
-const updateSizeLabel = () => {
-  sizeOut.textContent = `${sizeInput.value} × ${sizeInput.value}`;
-};
-sizeInput.addEventListener("input", updateSizeLabel);
-updateSizeLabel();
+// Live labels for range sliders.
+function liveLabel(inputId, outId, fmt) {
+  const input = $(inputId), out = $(outId);
+  const update = () => { out.textContent = fmt(input.value); };
+  input.addEventListener("input", update);
+  update();
+}
+liveLabel("opt-size",      "opt-size-out",     (v) => `${v} × ${v}`);
+liveLabel("opt-mines",     "opt-mines-out",    (v) => v === "0" ? "off" : v);
+liveLabel("opt-mine-pts",  "opt-mine-pts-out", (v) => v);
 
 function readConfig() {
   return {
-    n: parseInt(sizeInput.value, 10),
+    n: parseInt($("opt-size").value, 10),
     numPlayers: parseInt($("opt-players").value, 10),
     seedMode: $("opt-seed").value,
     vsAI: $("opt-mode").value === "ai",
+    minesPerPlayer: parseInt($("opt-mines").value, 10),
+    minePoints: parseInt($("opt-mine-pts").value, 10),
   };
 }
 

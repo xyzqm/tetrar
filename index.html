@@ -48,6 +48,18 @@
         </select>
       </label>
 
+      <label class="field">
+        <span>Mines / player</span>
+        <input id="opt-mines" type="range" min="0" max="5" step="1" value="3" />
+        <output id="opt-mines-out">3</output>
+      </label>
+
+      <label class="field">
+        <span>Mine points</span>
+        <input id="opt-mine-pts" type="range" min="0" max="30" step="5" value="10" />
+        <output id="opt-mine-pts-out">10</output>
+      </label>
+
       <div class="menu-actions">
         <button id="start-btn" class="primary">Start local game</button>
         <button id="online-btn">Play online</button>
@@ -63,9 +75,16 @@
         </p>
         <p>
           Seal off empty space with your color and it's
-          <strong>captured</strong> — the board edges count as walls, so any empty
-          region only your color borders becomes yours. (Trapped opponent cells are
-          left alone.)
+          <strong>captured</strong> — board edges count as walls, and trapped
+          opponent cells are left alone but don't prevent capture of the empty space
+          around them.
+        </p>
+        <p>
+          Before the game, each player secretly places <strong>mines 💣</strong>.
+          If any cell you select contains a mine, your <strong>entire turn is
+          skipped</strong> — and you won't know which cell caused it. Probe
+          cautiously or risk losing a turn. Enclose a region containing mines to
+          earn <strong>bonus points</strong>.
         </p>
         <p>
           If you can place fewer than four, place what you can and end your turn.

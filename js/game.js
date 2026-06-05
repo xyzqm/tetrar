@@ -29,7 +29,14 @@ function cornerSeeds(n, numPlayers) {
   return order.slice(0, numPlayers);
 }
 
-export function createGame({ n = 11, numPlayers = 2, seedMode = "corners", vsAI = false } = {}) {
+export function createGame({
+  n = 11,
+  numPlayers = 2,
+  seedMode = "corners",
+  vsAI = false,
+  minesPerPlayer = 3,
+  minePoints = 10,
+} = {}) {
   const players = PLAYER_DEFS.slice(0, numPlayers).map((p, i) => ({
     ...p,
     index: i,
@@ -41,6 +48,26 @@ export function createGame({ n = 11, numPlayers = 2, seedMode = "corners", vsAI 
   // and pick-seed phases).
   const movesMade = players.map(() => 0);
 
+  // Mines are hidden from opponents. The mines array is the ground truth; the UI
+  // tracks which mines *this client* placed so it can display them locally.
+  // NOTE: in online play the full mines array travels in stateJson (technically
+  // readable by anyone inspecting the network). For casual play this is acceptable;
+  // add Firebase Auth + per-player secret paths for true privacy.
+  const mines = new Array(n * n).fill(false);
+  const minesPlaced = players.map(() => 0);
+  const mineScores = players.map(() => 0);
+
+  // Determine the starting phase.
+  // If minesPerPlayer > 0, always start with "mining" before seeding/playing.
+  let phase;
+  if (minesPerPlayer > 0) {
+    phase = "mining";
+  } else if (seedMode === "pick" || seedMode === "free") {
+    phase = "seeding";
+  } else {
+    phase = "playing";
+  }
+
   const state = {
     n,
     players,
@@ -48,7 +75,16 @@ export function createGame({ n = 11, numPlayers = 2, seedMode = "corners", vsAI 
     current: 0,
     seedMode,
     movesMade,
-    phase: seedMode === "pick" ? "seeding" : "playing",
+    phase,
+    mines,
+    minesPerPlayer,
+    minePoints,
+    minesPlaced,
+    mineScores,
+    // Count of consecutive passes (zero-cell turns). When a full round of players
+    // all pass — e.g. everyone is walled in by mines they can't get past — the game
+    // ends instead of stalling forever.
+    consecutivePasses: 0,
   };
 
   if (seedMode === "corners") {
@@ -61,10 +97,64 @@ export function createGame({ n = 11, numPlayers = 2, seedMode = "corners", vsAI 
   return state;
 }
 
-// Has this player placed any territory yet?
-function hasTerritory(state, player) {
-  return state.grid.some((owner) => owner === player);
+// ---------------------------------------------------------------------------
+// Mine placement helpers
+// ---------------------------------------------------------------------------
+
+// Is `idx` a legal cell for placing a mine?
+// Rules: not on the outermost border, not already owned. Placing on an
+// already-mined cell IS allowed — mines placed blindly may coincide, and two
+// mines on the same cell collapse to one (the boolean grid is idempotent).
+export function cellLegalForMine(state, idx) {
+  const { n, grid } = state;
+  const r = Math.floor(idx / n);
+  const c = idx % n;
+  if (r === 0 || r === n - 1 || c === 0 || c === n - 1) return false; // border
+  if (grid[idx] !== null) return false; // already owned (corner seed)
+  return true;
 }
+
+// Place one mine for `player` at `idx`. Mutates state. Returns state.
+//
+// Placement is sequenced and blind: a player places ALL their mines before the
+// next player starts, and players never see each other's mines. Coinciding mines
+// collapse to one. Transitions out of mining once every player has finished.
+export function applyMinePlacement(state, player, idx) {
+  if (!cellLegalForMine(state, idx)) {
+    throw new Error(`Illegal mine placement at ${idx}`);
+  }
+  state.mines[idx] = true; // idempotent: coinciding mines collapse to one
+  state.minesPlaced[player] += 1;
+
+  // This player keeps placing until they've laid all their mines.
+  if (state.minesPlaced[player] < state.minesPerPlayer) {
+    return state;
+  }
+
+  // This player is done — find the next player who still needs to place.
+  const count = state.players.length;
+  let nextPlacer = -1;
+  for (let step = 1; step <= count; step++) {
+    const cand = (player + step) % count;
+    if (state.minesPlaced[cand] < state.minesPerPlayer) {
+      nextPlacer = cand;
+      break;
+    }
+  }
+
+  if (nextPlacer === -1) {
+    // Everyone has finished — move to the first real phase.
+    state.phase = state.seedMode === "pick" || state.seedMode === "free" ? "seeding" : "playing";
+    state.current = 0;
+  } else {
+    state.current = nextPlacer;
+  }
+  return state;
+}
+
+// ---------------------------------------------------------------------------
+// Territory phase helpers (unchanged from before)
+// ---------------------------------------------------------------------------
 
 // Is `idx` orthogonally adjacent to a cell owned by `player`?
 function adjacentToOwn(state, idx, player) {
@@ -76,7 +166,7 @@ function adjacentToPending(state, idx, pendingSet) {
   return neighbors(idx, state.n).some((nb) => pendingSet.has(nb));
 }
 
-// During the seeding phase (pick mode), any empty cell is a legal seed.
+// During the seeding phase (pick/free mode), any empty cell is a legal seed.
 function inSeedingPhase(state, player) {
   if (state.seedMode === "pick") return state.movesMade[player] === 0;
   if (state.seedMode === "free") return state.movesMade[player] === 0;
@@ -139,8 +229,10 @@ function nextMover(state, from) {
   return -1;
 }
 
-// Apply a validated set of cells for `player`. Mutates and returns state.
-// Throws if any cell is illegal or the count exceeds the per-turn limit.
+// Apply a validated set of cells for `player`. Mutates state.
+// Returns { state, mineHit: boolean }.
+// If any selected cell is a mine, the entire turn is skipped (no cells claimed)
+// but the turn still counts and advances.
 export function applyTurn(state, player, cells) {
   const limit = turnLimit(state, player);
   if (cells.length > limit) {
@@ -154,11 +246,27 @@ export function applyTurn(state, player, cells) {
     }
     pending.add(idx);
   }
-  for (const idx of cells) state.grid[idx] = player;
+
+  // Mine check: if ANY selected cell contains a mine, skip the entire turn.
+  // Seeding is mine-safe — you can't lose your initial foothold to a mine; mines
+  // only bite during the territory battle (the "playing" phase).
+  const mineHit = state.phase === "playing" && cells.some((idx) => state.mines[idx]);
+
+  if (!mineHit) {
+    for (const idx of cells) state.grid[idx] = player;
+    // Any region now fully enclosed flips to its enclosing player.
+    captureEnclosed(state);
+  }
+
   state.movesMade[player] += 1;
 
-  // Any region this player has now fully enclosed flips to them.
-  captureEnclosed(state, player);
+  // Track passes (zero-cell turns). A mine hit is an attempt, not a pass, so it
+  // resets the counter. A full round of passes means nobody can make progress.
+  if (cells.length === 0) {
+    state.consecutivePasses += 1;
+  } else {
+    state.consecutivePasses = 0;
+  }
 
   // Leave seeding phase once every player has taken their first turn (pick mode).
   if (state.phase === "seeding" && state.movesMade.every((m) => m > 0)) {
@@ -166,43 +274,56 @@ export function applyTurn(state, player, cells) {
   }
 
   const next = nextMover(state, player);
-  if (next === -1) {
+  if (next === -1 || state.consecutivePasses >= state.players.length) {
     state.phase = "gameover";
   } else {
     state.current = next;
   }
-  return state;
+  return { state, mineHit };
 }
 
-// Capture empty regions sealed off by `player`. The board edges act as walls, so an
-// empty region is captured when the only player bordering it is `player` (no opponent
-// cell touches it). Only empty cells flip — enclosed opponent cells are left alone.
-// Skipped until every player has territory, so the first mover in a seed mode can't
-// claim the whole open board. Mutates the grid and returns the captured indices.
-export function captureEnclosed(state, player) {
-  // Don't capture before everyone has a foothold (pick/free seed phases).
+// ---------------------------------------------------------------------------
+// Enclosure capture.
+//
+// The board EDGE acts as a wall. Empty cells are grouped into connected
+// components (flooding through empty cells only). A component is captured by
+// player P when P is the ONLY player with a cell bordering it — i.e. P has
+// walled it off (together with the board edges) from every opponent.
+//
+// Only empty cells flip; opponent cells are never taken. Mines inside a captured
+// region award bonus points to the enclosing player. Capture is assigned globally
+// to whichever single player encloses each region, regardless of who just moved.
+// Skipped until every player has a foothold so a first mover in a seed mode can't
+// grab the open board.
+//
+// Note: an opponent cell sitting inside a pocket counts as bordering it, so it
+// makes the region contested and blocks capture. Capturing the empties *around*
+// a trapped enemy cell is intentionally not supported (doing it safely needs a
+// full life/death analysis).
+// ---------------------------------------------------------------------------
+export function captureEnclosed(state) {
   if (!state.players.every((p) => state.grid.includes(p.index))) return [];
 
-  const { n, grid } = state;
+  const { n, grid, mines, minePoints, mineScores } = state;
   const total = n * n;
-  const visited = new Array(total).fill(false);
+  const visited = new Uint8Array(total);
   const captured = [];
 
   for (let start = 0; start < total; start++) {
     if (grid[start] !== null || visited[start]) continue;
 
-    // Flood the connected component of empty cells, noting which players border it.
+    // Flood this connected component of empty cells, noting bordering players.
     const component = [];
     const borderingPlayers = new Set();
     const stack = [start];
-    visited[start] = true;
+    visited[start] = 1;
     while (stack.length) {
       const idx = stack.pop();
       component.push(idx);
       for (const nb of neighbors(idx, n)) {
         if (grid[nb] === null) {
           if (!visited[nb]) {
-            visited[nb] = true;
+            visited[nb] = 1;
             stack.push(nb);
           }
         } else {
@@ -211,10 +332,12 @@ export function captureEnclosed(state, player) {
       }
     }
 
-    // Sealed by this player alone (board edges count as walls) -> claim it.
-    if (borderingPlayers.size === 1 && borderingPlayers.has(player)) {
+    // Enclosed by exactly one player -> that player claims the empty cells.
+    if (borderingPlayers.size === 1) {
+      const owner = [...borderingPlayers][0];
       for (const idx of component) {
-        grid[idx] = player;
+        grid[idx] = owner;
+        if (mines[idx]) mineScores[owner] += minePoints; // mine bonus
         captured.push(idx);
       }
     }
@@ -228,12 +351,15 @@ export function isGameOver(state) {
   return state.players.every((p) => !canPlayerMove(state, p.index));
 }
 
-// Owned-cell count per player, indexed by player index.
+// Owned-cell count + mine bonus points per player.
 export function scores(state) {
   const out = state.players.map(() => 0);
   for (const owner of state.grid) {
     if (owner !== null) out[owner] += 1;
   }
+  // Add mine bonus points earned through enclosure.
+  const mineScores = state.mineScores || [];
+  for (let i = 0; i < out.length; i++) out[i] += mineScores[i] || 0;
   return out;
 }
 
