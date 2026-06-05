@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetrar</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Tetrar</h1>
+      <p class="tagline">Claim four. Hold the most.</p>
+    </header>
+
+    <!-- Start menu -->
+    <section id="menu" class="panel">
+      <h2>New Game</h2>
+
+      <label class="field">
+        <span>Grid size</span>
+        <input id="opt-size" type="range" min="5" max="15" step="2" value="11" />
+        <output id="opt-size-out">11 × 11</output>
+      </label>
+
+      <label class="field">
+        <span>Mode</span>
+        <select id="opt-mode">
+          <option value="hotseat">Local hotseat (humans)</option>
+          <option value="ai">Vs AI</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Players</span>
+        <select id="opt-players">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Seeding</span>
+        <select id="opt-seed">
+          <option value="corners">Auto-seed corners</option>
+          <option value="pick">Pick a starting cell</option>
+          <option value="free">Free first move (4 cells)</option>
+        </select>
+      </label>
+
+      <button id="start-btn" class="primary">Start</button>
+
+      <details class="rules">
+        <summary>How to play</summary>
+        <p>
+          On your turn, claim up to <strong>4</strong> empty cells. Each cell must
+          be orthogonally connected to your existing territory — or to another cell
+          you're claiming this same turn, so you can grow a chain of four.
+        </p>
+        <p>
+          If you can place fewer than four, place what you can and end your turn.
+          When no one can move, whoever holds the most cells wins.
+        </p>
+      </details>
+    </section>
+
+    <!-- Game view -->
+    <section id="game" class="panel hidden">
+      <div id="hud" class="hud"></div>
+      <div id="board" class="board"></div>
+      <div class="controls">
+        <button id="confirm-btn" class="primary" disabled>Confirm</button>
+        <button id="end-btn">End turn</button>
+        <button id="clear-btn">Clear</button>
+        <button id="newgame-btn" class="ghost">New game</button>
+      </div>
+      <p id="status" class="status"></p>
+    </section>
+
+    <!-- Game over overlay -->
+    <div id="gameover" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="result-title">Game over</h2>
+        <div id="result-scores"></div>
+        <button id="again-btn" class="primary">New game</button>
+      </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
