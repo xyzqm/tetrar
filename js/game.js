@@ -157,6 +157,9 @@ export function applyTurn(state, player, cells) {
   for (const idx of cells) state.grid[idx] = player;
   state.movesMade[player] += 1;
 
+  // Any region this player has now fully enclosed flips to them.
+  captureEnclosed(state, player);
+
   // Leave seeding phase once every player has taken their first turn (pick mode).
   if (state.phase === "seeding" && state.movesMade.every((m) => m > 0)) {
     state.phase = "playing";
@@ -169,6 +172,47 @@ export function applyTurn(state, player, cells) {
     state.current = next;
   }
   return state;
+}
+
+// Capture any region fully enclosed by `player`. A region is the set of cells NOT
+// owned by `player`; flood-fill from the border through non-player cells marks every
+// cell that can "escape" to an edge. Any non-player cell that can't escape is walled
+// in by `player` and flips to them (this includes enclosed opponent cells, Go-style).
+// Mutates the grid and returns the captured indices.
+export function captureEnclosed(state, player) {
+  const { n, grid } = state;
+  const total = n * n;
+  const escapes = new Array(total).fill(false);
+  const stack = [];
+
+  // Seed the flood from every border cell not owned by the player.
+  for (let idx = 0; idx < total; idx++) {
+    const r = Math.floor(idx / n);
+    const c = idx % n;
+    const onBorder = r === 0 || c === 0 || r === n - 1 || c === n - 1;
+    if (onBorder && grid[idx] !== player && !escapes[idx]) {
+      escapes[idx] = true;
+      stack.push(idx);
+    }
+  }
+  while (stack.length) {
+    const idx = stack.pop();
+    for (const nb of neighbors(idx, n)) {
+      if (grid[nb] !== player && !escapes[nb]) {
+        escapes[nb] = true;
+        stack.push(nb);
+      }
+    }
+  }
+
+  const captured = [];
+  for (let idx = 0; idx < total; idx++) {
+    if (grid[idx] !== player && !escapes[idx]) {
+      grid[idx] = player;
+      captured.push(idx);
+    }
+  }
+  return captured;
 }
 
 export function isGameOver(state) {

@@ -22,6 +22,18 @@ export class GameUI {
     this.pending = new Set(); // cells selected this turn, not yet committed
     this.cellEls = []; // index -> div
     this.aiThinking = false;
+
+    // Drag-to-select state.
+    this.dragging = false;
+    this.dragMode = null; // "select" | "deselect"
+    this.lastDragIdx = -1;
+
+    const board = els.board;
+    board.addEventListener("pointerdown", (e) => this.onPointerDown(e));
+    board.addEventListener("pointermove", (e) => this.onPointerMove(e));
+    window.addEventListener("pointerup", () => this.endDrag());
+    window.addEventListener("pointercancel", () => this.endDrag());
+    board.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
   start(config) {
@@ -44,7 +56,6 @@ export class GameUI {
       const cell = document.createElement("button");
       cell.className = "cell";
       cell.dataset.idx = idx;
-      cell.addEventListener("click", () => this.onCellClick(idx));
       board.appendChild(cell);
       this.cellEls.push(cell);
     }
@@ -58,24 +69,74 @@ export class GameUI {
     return !this.currentPlayer.isAI && !this.aiThinking;
   }
 
-  onCellClick(idx) {
-    if (!this.isHumanTurn()) return;
-    const player = this.state.current;
+  // Resolve the cell index under a screen point (works for mouse and touch).
+  cellIdxFromPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const cell = el && el.closest && el.closest(".cell");
+    return cell ? Number(cell.dataset.idx) : -1;
+  }
 
-    if (this.pending.has(idx)) {
-      // Deselect, then drop any now-orphaned selections (they may have depended on
-      // this cell for connectivity). Rebuild the pending set greedily.
-      this.pending.delete(idx);
-      this.repairPending(player);
-      this.refresh();
-      return;
+  onPointerDown(e) {
+    if (!this.isHumanTurn()) return;
+    if (e.button !== undefined && e.button !== 0) return; // left button / touch only
+    const idx = this.cellIdxFromPoint(e.clientX, e.clientY);
+    if (idx < 0) return;
+    e.preventDefault();
+
+    this.dragging = true;
+    this.lastDragIdx = idx;
+    try {
+      this.els.board.setPointerCapture(e.pointerId);
+    } catch {
+      /* capture is best-effort */
     }
 
+    const player = this.state.current;
+    if (this.pending.has(idx)) {
+      // Starting on a selected cell begins a deselect drag.
+      this.dragMode = "deselect";
+      this.deselect(idx, player);
+    } else {
+      this.dragMode = "select";
+      this.tryAdd(idx, player);
+    }
+    this.refresh();
+  }
+
+  onPointerMove(e) {
+    if (!this.dragging) return;
+    const idx = this.cellIdxFromPoint(e.clientX, e.clientY);
+    if (idx < 0 || idx === this.lastDragIdx) return;
+    this.lastDragIdx = idx;
+
+    const player = this.state.current;
+    if (this.dragMode === "select") {
+      this.tryAdd(idx, player);
+    } else if (this.dragMode === "deselect" && this.pending.has(idx)) {
+      this.deselect(idx, player);
+    }
+    this.refresh();
+  }
+
+  endDrag() {
+    if (!this.dragging) return;
+    this.dragging = false;
+    this.dragMode = null;
+    this.lastDragIdx = -1;
+  }
+
+  // Add a cell to the selection if it's a legal, unfilled slot.
+  tryAdd(idx, player) {
+    if (this.pending.has(idx)) return;
     if (this.pending.size >= turnLimit(this.state, player)) return;
     if (!cellLegalForPlayer(this.state, idx, player, this.pending)) return;
-
     this.pending.add(idx);
-    this.refresh();
+  }
+
+  // Remove a cell, then drop any selections that depended on it for connectivity.
+  deselect(idx, player) {
+    this.pending.delete(idx);
+    this.repairPending(player);
   }
 
   // After a deselection, keep only cells that remain legal in selection order.
